@@ -26,6 +26,7 @@ final class NetworkManager: NetworkManagerProtocol {
 	
 	private var authKeys: AuthParams?
 	private var authKeyTask: Task<Void, Never>?
+	private var timer: Timer?
 	
 	init(
 		configs: Configs,
@@ -44,6 +45,7 @@ final class NetworkManager: NetworkManagerProtocol {
 	
 	deinit {
 		authKeyTask?.cancel()
+		timer?.invalidate()
 	}
 	
 	func sendRequest(for transactionKind: TransactionKind, payload: TransactionPayload) async throws -> TransactionResponse {
@@ -68,9 +70,6 @@ final class NetworkManager: NetworkManagerProtocol {
 		var urlRequest = URLRequest(url: url)
 		urlRequest.httpMethod = kind.httpMethod
 		var headers = defaultHeaders()
-		// TODO: handle refreshing the token after 15 mins
-		// The access token expires after 15 mins and needs to be refreshed.
-		// Possible way is to use a task/timer to refresh everytime 15 mins elapse
 		if let authKeys {
 			headers["Authorization"] = authKeys.access
 		} else {
@@ -89,14 +88,22 @@ final class NetworkManager: NetworkManagerProtocol {
 			do {
 				let authKeys = try await self.fetchAuthKeys(for: configs)
 				self.authKeys = authKeys
-				// Debug purpose
-				print(authKeys)
+				// After updating the configs, start the timer to update the auth keys after every 15 mins
+				if timer == nil {
+					timer = Timer(timeInterval: 900, target: self, selector: #selector(updateAuthKeysByTimer), userInfo: nil, repeats: true)
+					timer?.fire()
+				}
 			} catch {
 				// Log this properly
 				print("Failed to load auth keys: ", error.localizedDescription)
 			}
 			self.authKeyTask = nil
 		}
+	}
+	
+	@objc
+	private func updateAuthKeysByTimer() {
+		updateAuthkeys(for: self.configs)
 	}
 	
 	private func fetchAuthKeys(for configs: Configs) async throws -> AuthParams {
