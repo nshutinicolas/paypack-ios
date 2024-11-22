@@ -26,6 +26,8 @@ final class NetworkManager: NetworkManagerProtocol {
 	
 	private var authKeys: AuthParams?
 	private var authKeyTask: Task<Void, Never>?
+	private var refreshKeysTask: Task<Void, Never>?
+	private var timer: Timer?
 	
 	init(
 		configs: Configs,
@@ -44,6 +46,8 @@ final class NetworkManager: NetworkManagerProtocol {
 	
 	deinit {
 		authKeyTask?.cancel()
+		refreshKeysTask?.cancel()
+		timer?.invalidate()
 	}
 	
 	func sendRequest(for transactionKind: TransactionKind, payload: TransactionPayload) async throws -> TransactionResponse {
@@ -68,9 +72,6 @@ final class NetworkManager: NetworkManagerProtocol {
 		var urlRequest = URLRequest(url: url)
 		urlRequest.httpMethod = kind.httpMethod
 		var headers = defaultHeaders()
-		// TODO: handle refreshing the token after 15 mins
-		// The access token expires after 15 mins and needs to be refreshed.
-		// Possible way is to use a task/timer to refresh everytime 15 mins elapse
 		if let authKeys {
 			headers["Authorization"] = authKeys.access
 		} else {
@@ -86,16 +87,24 @@ final class NetworkManager: NetworkManagerProtocol {
 	private func updateAuthkeys(for configs: Configs) {
 		authKeyTask = Task { [weak self] in
 			guard let self else { return }
-			do {
-				let authKeys = try await self.fetchAuthKeys(for: configs)
-				self.authKeys = authKeys
-				// Debug purpose
-				print(authKeys)
-			} catch {
-				// Log this properly
-				print("Failed to load auth keys: ", error.localizedDescription)
+			let authKeys = try? await self.fetchAuthKeys(for: configs)
+			self.authKeys = authKeys
+			// After updating the configs, start the timer to update the auth keys after every 15 mins
+			if timer == nil {
+				scheduleTimer()
 			}
 			self.authKeyTask = nil
+		}
+	}
+	
+	@objc
+	private func refreshAuthKeysByTimer() {
+		guard authKeyTask == nil, let authKeys else { return }
+		refreshKeysTask = Task { [weak self] in
+			guard let self, let urlRequest = QueryBuilder.urlRequest(for: .refreshToken(token: authKeys.refresh), method: HTTPMethod.GET) else { return }
+			let tokens = try? await self.fetch(AuthParams.self, for: urlRequest)
+			self.authKeys = tokens
+			self.refreshKeysTask = nil
 		}
 	}
 	
@@ -128,6 +137,10 @@ final class NetworkManager: NetworkManagerProtocol {
 			"X-Webhook-Mode": environment.rawValue
 		]
 	}
+	
+	private func scheduleTimer() {
+		timer = Timer.scheduledTimer(timeInterval: 900, target: self, selector: #selector(refreshAuthKeysByTimer), userInfo: nil, repeats: true)
+	}
 }
 
 struct AuthParams: Decodable {
@@ -137,7 +150,7 @@ struct AuthParams: Decodable {
 }
 
 extension TransactionKind {
-	fileprivate var urlPath: QueryBuilder.URLPath {
+	fileprivate var urlPath: QueryBuilder.Path {
 		switch self {
 		case .cashIn: return .cashIn
 		case .cashOut: return .cashOut

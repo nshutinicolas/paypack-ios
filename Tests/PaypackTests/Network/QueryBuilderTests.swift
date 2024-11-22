@@ -47,4 +47,30 @@ final class QueryBuilderTests: XCTestCase {
 		XCTAssertEqual(Constants.baseUrl, baseUrl)
 		XCTAssertEqual(generatedURL, expectedURL, "The generated URL for authentication is incorrect.")
 	}
+	
+	func test_refreshTokenURL() {
+		// Given
+		let baseUrl = "https://payments.paypack.rw/api"
+		let expectedURL = URL(string: "https://payments.paypack.rw/api/auth/agents/refresh/token_id")
+		
+		// When
+		let generatedURL = QueryBuilder.url(for: .refreshToken(token: "token_id"))
+		
+		// Then
+		XCTAssertEqual(Constants.baseUrl, baseUrl)
+		XCTAssertEqual(generatedURL, expectedURL, "The generated URL for authentication is incorrect.")
+	}
+	
+	func test_urlRequestURL() {
+		// Given
+		let expectedURL = URL(string: "https://payments.paypack.rw/api/transactions/cashin")
+		let expectedHTTPMethod = HTTPMethod.GET
+		
+		// When
+		let urlRequest = QueryBuilder.urlRequest(for: .cashIn, method: HTTPMethod.GET)
+		
+		// Then
+		XCTAssertEqual(urlRequest?.httpMethod, expectedHTTPMethod)
+		XCTAssertEqual(urlRequest?.url, expectedURL)
+	}
 }
