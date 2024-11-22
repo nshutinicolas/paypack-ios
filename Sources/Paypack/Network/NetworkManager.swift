@@ -26,6 +26,7 @@ final class NetworkManager: NetworkManagerProtocol {
 	
 	private var authKeys: AuthParams?
 	private var authKeyTask: Task<Void, Never>?
+	private var refreshKeysTask: Task<Void, Never>?
 	private var timer: Timer?
 	
 	init(
@@ -45,6 +46,7 @@ final class NetworkManager: NetworkManagerProtocol {
 	
 	deinit {
 		authKeyTask?.cancel()
+		refreshKeysTask?.cancel()
 		timer?.invalidate()
 	}
 	
@@ -85,25 +87,25 @@ final class NetworkManager: NetworkManagerProtocol {
 	private func updateAuthkeys(for configs: Configs) {
 		authKeyTask = Task { [weak self] in
 			guard let self else { return }
-			do {
-				let authKeys = try await self.fetchAuthKeys(for: configs)
-				self.authKeys = authKeys
-				// After updating the configs, start the timer to update the auth keys after every 15 mins
-				if timer == nil {
-					timer = Timer(timeInterval: 900, target: self, selector: #selector(updateAuthKeysByTimer), userInfo: nil, repeats: true)
-					timer?.fire()
-				}
-			} catch {
-				// Log this properly
-				print("Failed to load auth keys: ", error.localizedDescription)
+			let authKeys = try? await self.fetchAuthKeys(for: configs)
+			self.authKeys = authKeys
+			// After updating the configs, start the timer to update the auth keys after every 15 mins
+			if timer == nil {
+				scheduleTimer()
 			}
 			self.authKeyTask = nil
 		}
 	}
 	
 	@objc
-	private func updateAuthKeysByTimer() {
-		updateAuthkeys(for: self.configs)
+	private func refreshAuthKeysByTimer() {
+		guard authKeyTask == nil, let authKeys else { return }
+		refreshKeysTask = Task { [weak self] in
+			guard let self, let urlRequest = QueryBuilder.urlRequest(for: .refreshToken(token: authKeys.refresh), method: HTTPMethod.GET) else { return }
+			let tokens = try? await self.fetch(AuthParams.self, for: urlRequest)
+			self.authKeys = tokens
+			self.refreshKeysTask = nil
+		}
 	}
 	
 	private func fetchAuthKeys(for configs: Configs) async throws -> AuthParams {
@@ -135,6 +137,10 @@ final class NetworkManager: NetworkManagerProtocol {
 			"X-Webhook-Mode": environment.rawValue
 		]
 	}
+	
+	private func scheduleTimer() {
+		timer = Timer.scheduledTimer(timeInterval: 900, target: self, selector: #selector(refreshAuthKeysByTimer), userInfo: nil, repeats: true)
+	}
 }
 
 struct AuthParams: Decodable {
@@ -144,7 +150,7 @@ struct AuthParams: Decodable {
 }
 
 extension TransactionKind {
-	fileprivate var urlPath: QueryBuilder.URLPath {
+	fileprivate var urlPath: QueryBuilder.Path {
 		switch self {
 		case .cashIn: return .cashIn
 		case .cashOut: return .cashOut

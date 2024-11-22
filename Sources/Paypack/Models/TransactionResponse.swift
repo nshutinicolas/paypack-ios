@@ -68,7 +68,6 @@ public enum TransactionResponse: Decodable {
 		} else if let errorResponse = try? container.decode(FailureResponse.self) {
 			self = .failure(errorResponse)
 		} else {
-			// TODO: Find a better way to handle this error
 			self = .failure(.init(message: "Invalid response"))
 		}
 	}
