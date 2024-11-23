@@ -7,54 +7,45 @@
 
 import Foundation
 
-public struct FailureResponse: Decodable, Error {
-	let message: String
-}
+public typealias FailureTransactionResponse = FailureResponse
 
-public enum Provider: String, Decodable {
-	case mtn, airtel
-}
-
-public enum TransactionStatus: String, Decodable {
-	case pending, success, failed
-}
-
-public enum TransactionKind: String, Decodable {
-	case cashIn = "CASHIN"
-	case cashOut = "CASHOUT"
-}
-
-public struct SuccessResponse: Decodable {
+public struct SuccessfulTransactionResponse: Decodable {
 	let amount: Int
+	let client: String
+	let fee: Int
+	let merchant: String
 	let status: TransactionStatus
 	let kind: TransactionKind
 	let ref: String
-	let createdAt: String // TODO: Make this a Date type
-	let provider: Provider
+	let timestamp: String // TODO: Make this a Date type
 	
-	enum CodingKeys: String, CodingKey {
+	enum CodingKeys: CodingKey {
 		case amount
+		case client
+		case fee
+		case merchant
 		case status
 		case kind
 		case ref
-		case createdAt = "created_at"
-		case provider
+		case timestamp
 	}
 	
 	public init(from decoder: Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		self.amount = try container.decode(Int.self, forKey: .amount)
+		self.client = try container.decode(String.self, forKey: .client)
+		self.fee = try container.decode(Int.self, forKey: .fee)
+		self.merchant = try container.decode(String.self, forKey: .merchant)
 		self.status = try container.decode(TransactionStatus.self, forKey: .status)
 		self.kind = try container.decode(TransactionKind.self, forKey: .kind)
 		self.ref = try container.decode(String.self, forKey: .ref)
-		self.createdAt = try container.decode(String.self, forKey: .createdAt)
-		self.provider = try container.decode(Provider.self, forKey: .provider)
+		self.timestamp = try container.decode(String.self, forKey: .timestamp)
 	}
 }
 
 public enum TransactionResponse: Decodable {
-	case success(SuccessResponse)
-	case failure(FailureResponse)
+	case success(SuccessfulTransactionResponse)
+	case failure(FailureTransactionResponse)
 	
 	enum CodingKeys: CodingKey {
 		case success
@@ -63,9 +54,9 @@ public enum TransactionResponse: Decodable {
 	
 	public init(from decoder: Decoder) throws {
 		let container = try decoder.singleValueContainer()
-		if let response = try? container.decode(SuccessResponse.self) {
+		if let response = try? container.decode(SuccessfulTransactionResponse.self) {
 			self = .success(response)
-		} else if let errorResponse = try? container.decode(FailureResponse.self) {
+		} else if let errorResponse = try? container.decode(FailureTransactionResponse.self) {
 			self = .failure(errorResponse)
 		} else {
 			self = .failure(.init(message: "Invalid response"))

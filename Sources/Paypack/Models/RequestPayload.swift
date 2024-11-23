@@ -1,5 +1,5 @@
 //
-//  TransactionPayload.swift
+//  RequestPayload.swift
 //
 //
 //  Created by Musoni nshuti Nicolas on 18/11/2024.
@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct TransactionPayload: Encodable {
+public struct RequestPayload: Encodable {
 	let amount: CGFloat
 	let number: String
 	
