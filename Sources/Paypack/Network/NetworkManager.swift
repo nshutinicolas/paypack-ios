@@ -13,11 +13,12 @@ enum HTTPMethod {
 }
 
 protocol NetworkManagerProtocol {
-	func sendRequest(for transactionKind: TransactionKind, payload: TransactionPayload) async throws -> TransactionResponse
+	func sendRequest(for transactionKind: TransactionKind, payload: RequestPayload) async throws -> RequestResponse
+	func findTransaction(with id: String) async throws -> TransactionResponse
 }
 
+typealias HTTPHeaders = [String: String]
 final class NetworkManager: NetworkManagerProtocol {
-	typealias HTTPHeaders = [String: String]
 	private let configs: Configs
 	private let environment: Environment
 	private let session: URLSessionProtocol
@@ -50,38 +51,30 @@ final class NetworkManager: NetworkManagerProtocol {
 		timer?.invalidate()
 	}
 	
-	func sendRequest(for transactionKind: TransactionKind, payload: TransactionPayload) async throws -> TransactionResponse {
+	func sendRequest(for transactionKind: TransactionKind, payload: RequestPayload) async throws -> RequestResponse {
 		guard payload.isValid else {
-			throw FailureResponse(message: "Invalid payload content") // String localization
+			throw FailureResponse(message: "Invalid payload content")
 		}
 		return try await makeTransaction(for: transactionKind, payload: payload)
 	}
 	
-	private func makeTransaction(for kind: TransactionKind, payload: TransactionPayload) async throws -> TransactionResponse {
-		guard let url = QueryBuilder.url(for: kind.urlPath) else {
+	func findTransaction(with id: String) async throws -> TransactionResponse {
+		let authHeader = try await authHeader()
+		guard let urlRequest = QueryBuilder.urlRequest(for: .transaction(id: id), method: HTTPMethod.GET, environment: environment, additionalHeaders: authHeader) else {
 			throw URLError(.badURL)
 		}
-		let requestBody = try encoder.encode(payload)
-		var urlRequest = try await makeURLRequest(for: url, kind: kind)
-		urlRequest.httpBody = requestBody
-		
 		return try await fetch(TransactionResponse.self, for: urlRequest)
 	}
 	
-	private func makeURLRequest(for url: URL, kind: TransactionKind) async throws -> URLRequest {
-		var urlRequest = URLRequest(url: url)
-		urlRequest.httpMethod = kind.httpMethod
-		var headers = defaultHeaders()
-		if let authKeys {
-			headers["Authorization"] = authKeys.access
-		} else {
-			let auth = try await fetchAuthKeys(for: configs)
-			headers["Authorization"] = auth.access
+	private func makeTransaction(for kind: TransactionKind, payload: RequestPayload) async throws -> RequestResponse {
+		let authHeader = try await authHeader()
+		guard var urlRequest = QueryBuilder.urlRequest(for: kind.urlPath, method: HTTPMethod.POST, additionalHeaders: authHeader) else {
+			throw URLError(.badURL)
 		}
-		for header in headers {
-			urlRequest.addValue(header.value, forHTTPHeaderField: header.key)
-		}
-		return urlRequest
+		let requestBody = try encoder.encode(payload)
+		urlRequest.httpBody = requestBody
+		
+		return try await fetch(RequestResponse.self, for: urlRequest)
 	}
 	
 	private func updateAuthkeys(for configs: Configs) {
@@ -130,15 +123,20 @@ final class NetworkManager: NetworkManagerProtocol {
 		return try decoder.decode(model.self, from: data)
 	}
 	
-	private func defaultHeaders() -> HTTPHeaders {
-		[
-			"Accept": "application/json",
-			"Content-Type": "application/json",
-			"X-Webhook-Mode": environment.rawValue
-		]
+	private func authHeader() async throws -> HTTPHeaders {
+		var additionalHeader: HTTPHeaders = [:]
+		if let authKeys {
+			additionalHeader["Authorization"] = authKeys.access
+		} else {
+			let auth = try await fetchAuthKeys(for: configs)
+			additionalHeader["Authorization"] = auth.access
+			self.authKeys = auth
+		}
+		return additionalHeader
 	}
 	
 	private func scheduleTimer() {
+		// TODO: Fix timer scheduling
 		timer = Timer.scheduledTimer(timeInterval: 900, target: self, selector: #selector(refreshAuthKeysByTimer), userInfo: nil, repeats: true)
 	}
 }

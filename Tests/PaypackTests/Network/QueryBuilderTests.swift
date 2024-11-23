@@ -65,6 +65,11 @@ final class QueryBuilderTests: XCTestCase {
 		// Given
 		let expectedURL = URL(string: "https://payments.paypack.rw/api/transactions/cashin")
 		let expectedHTTPMethod = HTTPMethod.GET
+		let expectedHeaders = [
+			"Accept": "application/json",
+			"Content-Type": "application/json",
+			"X-Webhook-Mode": "development"
+		]
 		
 		// When
 		let urlRequest = QueryBuilder.urlRequest(for: .cashIn, method: HTTPMethod.GET)
@@ -72,5 +77,37 @@ final class QueryBuilderTests: XCTestCase {
 		// Then
 		XCTAssertEqual(urlRequest?.httpMethod, expectedHTTPMethod)
 		XCTAssertEqual(urlRequest?.url, expectedURL)
+		XCTAssertEqual(urlRequest?.allHTTPHeaderFields, expectedHeaders)
+	}
+	
+	func test_urlRequestURL_additionalHeaders() {
+		// Given
+		let expectedURL = URL(string: "https://payments.paypack.rw/api/transactions/cashin")
+		let expectedHTTPMethod = HTTPMethod.GET
+		let additionalHeaders = ["key": "value"]
+		
+		// When
+		let urlRequest = QueryBuilder.urlRequest(for: .cashIn, method: HTTPMethod.GET, additionalHeaders: additionalHeaders)
+		
+		// Then
+		XCTAssertEqual(urlRequest?.httpMethod, expectedHTTPMethod)
+		XCTAssertEqual(urlRequest?.url, expectedURL)
+		let allHTTPHeaderFields = urlRequest?.allHTTPHeaderFields
+		XCTAssertEqual(allHTTPHeaderFields?["key"], "value")
+	}
+	
+	func test_urlRequestURL_environmentHeader() {
+		// Given
+		let expectedURL = URL(string: "https://payments.paypack.rw/api/transactions/cashin")
+		let expectedHTTPMethod = HTTPMethod.GET
+		
+		// When
+		let urlRequest = QueryBuilder.urlRequest(for: .cashIn, method: HTTPMethod.GET, environment: .prod)
+		
+		// Then
+		XCTAssertEqual(urlRequest?.httpMethod, expectedHTTPMethod)
+		XCTAssertEqual(urlRequest?.url, expectedURL)
+		let allHTTPHeaderFields = urlRequest?.allHTTPHeaderFields
+		XCTAssertEqual(allHTTPHeaderFields?["X-Webhook-Mode"], "production")
 	}
 }

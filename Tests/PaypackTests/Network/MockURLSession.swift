@@ -25,7 +25,7 @@ class MockURLSession: URLSessionProtocol {
 }
 
 enum MockResponse {
-	static let validSuccess: Data? = {
+	static let validRequest: Data? = {
 	"""
 	{
 		"amount": 2000,
@@ -34,6 +34,21 @@ enum MockResponse {
 		"ref": "1234",
 		"created_at": "2024-11-18T12:00:00Z",
 		"provider": "airtel"
+	}
+	""".data(using: .utf8)
+	}()
+	
+	static let validTransaction: Data? = {
+	"""
+	{
+		"amount": 1000,
+		"client": "078000000",
+		"fee": 23,
+		"kind": "CASHOUT",
+		"merchant": "IJOK9F",
+		"ref": "1234",
+		"status": "pending",
+		"timestamp": "2014-05-16T08:28:06.801064-04:00"
 	}
 	""".data(using: .utf8)
 	}()
