@@ -40,7 +40,7 @@ Initialize package
 let configs = Configs(clientId: "client_id", clientSecret: "client_secret")
 let paypack = Paypack(configs: config, environment: .dev)
 ```
-> Note: By default, the environment is `development`, you may change to `production`.
+> Note: By default, the environment is `development`, you may change to `production` depending on your env.
 
 ### CashIn Request
 
@@ -70,6 +70,10 @@ paypack.cashInRequest(payload) { result in
 }
 ```
 
+**Cashin request Responses**
+ - Success: `SuccessfulRequestResponse`
+ - Failure: `FailureRequestResponse`
+
 ### CashOut Request
 > There are 2 methods, synchronous and asynchronous. [Documentation](https://docs.paypack.rw/quickstart/api-reference)
 
@@ -97,9 +101,39 @@ paypack.cashOutRequest(payload) { result in
 }
 ```
 
+**Cashout request Responses**
+ - Success: `SuccessfulRequestResponse`
+ - Failure: `FailureRequestResponse`
+
 ### Finding a transaction
 
-> ⚠️ To be implemented in filed issue #9
+> There are 2 methods, synchronous and asynchronous. [Documentation](https://docs.paypack.rw/quickstart/api-reference)
+
+asynchronous usage
+```swift
+let response = try await paypack.transaction(for: "transaction_id")
+```
+
+synchronous usage
+```swift
+paypack.transaction(for: "transaction_id") { result in
+	switch result {
+	case .success(let successResult):
+		switch successResult {
+		case .success(let successResponse):
+			// handle success response
+		case .failure(let failureResponse)
+			// handle failure response
+		}
+	case .failure(let failureResult):
+		// Handle Error response
+	}
+}
+```
+
+**Transaction Responses**
+ - Success: `SuccessfulTransactionResponse`
+ - Failure: `FailureTransactionResponse`
 
 ## Support
 
